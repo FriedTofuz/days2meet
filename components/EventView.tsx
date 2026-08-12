@@ -346,10 +346,14 @@ export default function EventView({ initialEvent, initialMeId }: Props) {
       const rowIndex = payload.slot % perDay;
       const date = geometry.dates[dateIndex];
 
+      // Match the grid's gutter, which shifts to the viewer's zone under the
+      // toggle. Without this the tooltip would keep naming the event-time hour
+      // while the header and the labels beside it read the viewer's.
+      const labelShift = showViewerTimes ? shiftMinutes : 0;
       const heading =
         geometry.mode === 'date_only'
           ? formatWeekdayMonthDay(date)
-          : `${formatWeekdayMonthDay(date)}, ${formatMinuteOfDay(rowStartMinute(geometry, rowIndex))}`;
+          : `${formatWeekdayMonthDay(date)}, ${formatMinuteOfDay(rowStartMinute(geometry, rowIndex) + labelShift)}`;
 
       setTooltip((current) => {
         if (current?.pinned && !payload.pinned) return current;
@@ -364,7 +368,7 @@ export default function EventView({ initialEvent, initialMeId }: Props) {
         };
       });
     },
-    [participants, slotSets, geometry, total],
+    [participants, slotSets, geometry, total, showViewerTimes, shiftMinutes],
   );
 
   // A tap outside the grid releases a pinned tooltip.
@@ -484,13 +488,13 @@ export default function EventView({ initialEvent, initialMeId }: Props) {
             desktop row itself rather than inside a box of its own.
           */}
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end">
-            <Link href="/" className="btn order-1 shrink-0 sm:order-none">
+            <Link href="/" className="btn order-1 min-h-11 shrink-0 sm:order-none">
               New days2meet
             </Link>
             {event.viewerIsLeader ? (
               <Link
                 href={`/e/${event.slug}/edit`}
-                className="btn btn-edit order-4 shrink-0 sm:order-none"
+                className="btn btn-edit order-4 min-h-11 shrink-0 sm:order-none"
               >
                 Edit days2meet
               </Link>
@@ -498,7 +502,7 @@ export default function EventView({ initialEvent, initialMeId }: Props) {
             {meId && !mobileEditing && !event.responsesClosed ? (
               <button
                 type="button"
-                className="btn btn-edit order-3 shrink-0 sm:order-none lg:hidden"
+                className="btn btn-edit order-3 min-h-11 shrink-0 sm:order-none lg:hidden"
                 onClick={() => setMobileEditing(true)}
               >
                 Edit availability
@@ -718,6 +722,7 @@ export default function EventView({ initialEvent, initialMeId }: Props) {
               participants={participants}
               counts={counts}
               onHighlight={setHighlightKeys}
+              labelShiftMinutes={showViewerTimes ? shiftMinutes : 0}
             />
           </div>
         ) : null}

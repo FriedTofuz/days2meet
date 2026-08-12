@@ -33,7 +33,12 @@ export default function ConfirmDialog({
   useScrollLock(true);
 
   useEffect(() => {
+    // Remember what opened the dialog and hand focus back to it on close, so a
+    // keyboard user who cancels lands on the Save button they came from rather
+    // than at the top of the document.
+    const trigger = document.activeElement as HTMLElement | null;
     cancelRef.current?.focus();
+    return () => trigger?.focus?.();
   }, []);
 
   useEffect(() => {

@@ -102,23 +102,32 @@ export default function EditEventPanel({ event }: Props) {
     [event.mode, event.timezone, saved],
   );
 
-  const pendingGeometry: EventGeometry = useMemo(
-    () => ({
+  const pendingGeometry: EventGeometry = useMemo(() => {
+    // The server snaps the window outward to the granularity before it stores or
+    // remaps anything (see the create/patch routes). Mirror that here, or the
+    // impact preview and the confirm dialog count against a grid the server will
+    // never build — promising a drop that does not happen, or hiding one that
+    // does, whenever a bound sits off the granularity (9:30 on a 60-min grid).
+    const snappedStart = timed ? Math.floor(startMinute / slotMinutes) * slotMinutes : null;
+    const snappedEnd = timed ? Math.min(1440, Math.ceil(endMinute / slotMinutes) * slotMinutes) : null;
+    return {
       mode: event.mode,
       dates,
       timezone: event.timezone,
       slotMinutes: timed ? slotMinutes : saved.slotMinutes,
-      startMinute: timed ? startMinute : null,
-      endMinute: timed ? endMinute : null,
-    }),
-    [event.mode, event.timezone, dates, timed, slotMinutes, startMinute, endMinute, saved.slotMinutes],
-  );
+      startMinute: snappedStart,
+      endMinute: snappedEnd,
+    };
+  }, [event.mode, event.timezone, dates, timed, slotMinutes, startMinute, endMinute, saved.slotMinutes]);
 
   const datesChanged = !sameDates(dates, saved.dates);
+  // Compared on the snapped bounds, not the raw select values, so nudging a
+  // select to a time that rounds back to the same slot is correctly "no change"
+  // — matching what would actually be sent and stored.
   const windowChanged =
     timed &&
-    (startMinute !== saved.startMinute ||
-      endMinute !== saved.endMinute ||
+    (pendingGeometry.startMinute !== saved.startMinute ||
+      pendingGeometry.endMinute !== saved.endMinute ||
       slotMinutes !== saved.slotMinutes);
   const changed =
     title.trim() !== saved.title ||
@@ -178,8 +187,11 @@ export default function EditEventPanel({ event }: Props) {
     const next: Saved = {
       title: title.trim(),
       dates,
-      startMinute: timed ? startMinute : saved.startMinute,
-      endMinute: timed ? endMinute : saved.endMinute,
+      // The snapped bounds the server will actually store, so a second edit this
+      // sitting measures its cost against the real grid, not the raw select
+      // values that were rounded away.
+      startMinute: timed ? pendingGeometry.startMinute : saved.startMinute,
+      endMinute: timed ? pendingGeometry.endMinute : saved.endMinute,
       slotMinutes: timed ? slotMinutes : saved.slotMinutes,
       emailRequired,
       responsesClosed,
@@ -246,7 +258,7 @@ export default function EditEventPanel({ event }: Props) {
     setNotice(null);
 
     if (!title.trim()) {
-      setError('Give the days2meet a name.');
+      setError('Give the event a name.');
       return;
     }
     if (dates.length === 0) {

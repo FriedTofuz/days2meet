@@ -24,6 +24,16 @@ export const CREATIONS_TABLE = 'w2m_event_creations';
 export const CREATIONS_PER_WINDOW = 20;
 export const WINDOW_MS = 60 * 60 * 1000;
 
+/**
+ * Sign-in throttling. Only *failed* attempts are counted, so a room of people
+ * signing in correctly from one address is never touched; a script guessing the
+ * leader's password is. The window is short so a wrong guess or two does not
+ * lock a real person out for long. Fifteen scrypts per address per quarter hour
+ * is also the ceiling on the CPU an unauthenticated caller can make sign-in burn.
+ */
+export const SIGNIN_FAILURES_PER_WINDOW = 15;
+export const SIGNIN_WINDOW_MS = 15 * 60 * 1000;
+
 export type RateVerdict = { allowed: true } | { allowed: false; retryAfterSeconds: number };
 
 /**
@@ -101,4 +111,56 @@ export async function recordCreationAttempt(request: Request): Promise<RateVerdi
   if (sweepError) console.error('[rate-limit] sweep failed:', sweepError.message);
 
   return { allowed: true };
+}
+
+/**
+ * Whether this address may attempt a sign-in, without recording anything — call
+ * it before spending a scrypt so a blocked caller costs nothing. It shares the
+ * creations table under a separate digest label, so the two counts never mix.
+ */
+export async function checkSigninRate(request: Request): Promise<RateVerdict> {
+  const bucket = keyedDigest('signin-fail-ip', clientAddress(request) ?? 'unknown');
+  const since = new Date(Date.now() - SIGNIN_WINDOW_MS).toISOString();
+
+  const { data, error } = await supabaseAdmin()
+    .from(CREATIONS_TABLE)
+    .select('created_at')
+    .eq('ip_hash', bucket)
+    .gte('created_at', since)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    // Fail open, as creation does: a broken meter must not lock people out.
+    console.error('[rate-limit] signin read failed, allowing:', error.message);
+    return { allowed: true };
+  }
+
+  const hits = (data ?? []) as { created_at: string }[];
+  if (hits.length >= SIGNIN_FAILURES_PER_WINDOW) {
+    const oldest = Date.parse(hits[0].created_at);
+    const retryAfterSeconds = Number.isFinite(oldest)
+      ? Math.max(1, Math.ceil((oldest + SIGNIN_WINDOW_MS - Date.now()) / 1000))
+      : Math.ceil(SIGNIN_WINDOW_MS / 1000);
+    return { allowed: false, retryAfterSeconds };
+  }
+
+  return { allowed: true };
+}
+
+/**
+ * Records one failed sign-in for this address. Call it only after a password
+ * actually fails to match — a correct sign-in leaves no trace, so honest use is
+ * never throttled. Prunes the same rows the creation sweep does, so the shared
+ * table stays bounded even on a deployment that only ever sees sign-ins.
+ */
+export async function recordSigninFailure(request: Request): Promise<void> {
+  const bucket = keyedDigest('signin-fail-ip', clientAddress(request) ?? 'unknown');
+  const db = supabaseAdmin();
+
+  const { error } = await db.from(CREATIONS_TABLE).insert({ ip_hash: bucket });
+  if (error) console.error('[rate-limit] signin write failed:', error.message);
+
+  const cutoff = new Date(Date.now() - WINDOW_MS).toISOString();
+  const { error: sweepError } = await db.from(CREATIONS_TABLE).delete().lt('created_at', cutoff);
+  if (sweepError) console.error('[rate-limit] signin sweep failed:', sweepError.message);
 }

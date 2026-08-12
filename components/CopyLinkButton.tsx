@@ -38,7 +38,7 @@ export default function CopyLinkButton() {
   };
 
   return (
-    <button type="button" className="btn shrink-0" onClick={copy}>
+    <button type="button" className="btn min-h-11 shrink-0" onClick={copy}>
       <span aria-live="polite">{copied ? 'Copied' : 'Copy link'}</span>
     </button>
   );

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { dateRange, formatMonthTitle, toKey, toUTCms } from '@/lib/dates';
+import { dateRange, formatMonthTitle, formatWeekdayMonthDay, toKey, toUTCms } from '@/lib/dates';
 import type { EventMode } from '@/lib/slots';
 import { useScrollLock } from './useScrollLock';
 
@@ -278,7 +278,7 @@ export default function CreationCalendar({ mode, onChange, initialDates }: Props
                     type="button"
                     data-date={date}
                     aria-pressed={chosen}
-                    aria-label={date}
+                    aria-label={formatWeekdayMonthDay(date)}
                     onPointerDown={(event) => handlePointerDown(event, date)}
                     onPointerMove={handlePointerMove}
                     onPointerEnter={() => mode === 'date_only' && setHoverDate(date)}

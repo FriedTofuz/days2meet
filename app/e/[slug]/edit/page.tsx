@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation';
 
 import EditEventPanel from '@/components/EditEventPanel';
 import { getEventPayload } from '@/lib/events';
-import { cookieName, readCookieValue } from '@/lib/session';
+import { cookieName, readSession, type Session } from '@/lib/session';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,17 +23,17 @@ export async function generateMetadata({
 export default async function EditEventPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
-  let meId: string | null = null;
+  let session: Session | null = null;
   try {
     const store = await cookies();
-    meId = readCookieValue(store.get(cookieName(slug))?.value);
+    session = readSession(store.get(cookieName(slug))?.value);
   } catch {
     // A missing or short SESSION_SECRET should not blank the page; the viewer
     // simply reads as nobody, which is the safe answer here.
-    meId = null;
+    session = null;
   }
 
-  const event = await getEventPayload(slug, meId);
+  const event = await getEventPayload(slug, session?.id ?? null, session?.verified ?? false);
   if (!event) notFound();
 
   // The editor is never sent to anyone else. Gating it in the client would hand

@@ -3,6 +3,12 @@ export const REPO_URL = 'https://github.com/MeagerPotato/days2meet';
 
 interface Props {
   className?: string;
+  /**
+   * Sized and centred as `.btn-primary`'s twin — same box, same type — for the
+   * phone layout, where the banner sits directly above the submit button and
+   * has to read as part of that stack rather than as a stray line of prose.
+   */
+  buttonSized?: boolean;
 }
 
 /**
@@ -13,14 +19,20 @@ interface Props {
  * The colours are `.btn-edit` from globals.css spelled out, because a banner is
  * not a button and should not answer to the button class.
  */
-export default function StarBanner({ className = '' }: Props) {
+export default function StarBanner({ className = '', buttonSized = false }: Props) {
   return (
     <p
-      className={`flex flex-wrap items-baseline gap-x-1.5 rounded-lg border border-[#8fd4ae] bg-[#d9f2e4] px-3 py-2 text-[0.8125rem] leading-relaxed text-[#0f4c33] ${className}`}
+      className={`flex flex-wrap rounded-lg border border-[#8fd4ae] bg-[#d9f2e4] text-[#0f4c33] ${
+        buttonSized
+          ? // The padding, size, weight and line height are .btn/.btn-primary's
+            // own numbers, so the two boxes come out the same height to the pixel.
+            'items-center justify-center gap-x-1.5 px-4 py-[0.5625rem] text-[0.875rem] font-medium leading-normal'
+          : 'items-baseline gap-x-1.5 px-3 py-2 text-[0.8125rem] leading-relaxed'
+      } ${className}`}
     >
       <span>days2meet is open source.</span>
       <a
-        className="font-semibold underline underline-offset-2"
+        className={`underline underline-offset-2 ${buttonSized ? '' : 'font-semibold'}`}
         href={REPO_URL}
         target="_blank"
         rel="noopener noreferrer"

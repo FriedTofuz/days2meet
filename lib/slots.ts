@@ -107,11 +107,12 @@ export interface SlotRemap {
  * so each one is decoded back to a real calendar date and time of day and then
  * re-encoded against the new grid.
  *
- * A mark lands in the row of `to` that *contains* its old start minute rather
- * than one that begins on the same minute: coarsening 15 minutes to 30 would
- * otherwise destroy every mark that started on a quarter hour. Two old rows
- * collapsing into one new row is not a loss, because slots are a set — which is
- * also why `dropped` counts inputs that found nowhere to go, not marks lost.
+ * Each mark fills every row of `to` that overlaps the span of real time its old
+ * slot covered. Coarsening 15 minutes to 30 lands two old rows on one new row,
+ * which is no loss because slots are a set; refining 60 to 15 fans one old row
+ * out across the four it contained, so nobody's hour shrinks to its first
+ * quarter. `dropped` counts inputs that found nowhere to go — a removed date, or
+ * a time now outside the window — not marks that merged.
  */
 export function remapSlots(
   from: EventGeometry,
@@ -155,13 +156,23 @@ export function remapSlots(
       continue;
     }
 
-    const row = Math.floor((minute - toStart) / to.slotMinutes);
-    if (row < 0 || row >= toPerDay) {
-      dropped += 1;
-      continue;
-    }
+    // A source slot covers a span of time, not an instant. Landing only its
+    // start minute is right when the new grid is coarser — many old slots fold
+    // into one, and a set loses nothing — but when the new grid is finer, a
+    // whole hour would otherwise collapse to its first sliver and quietly erase
+    // most of someone's availability. So fill every new row the old slot
+    // actually spanned, clamped to the window. Coarsening still lands on one row.
+    const firstRow = Math.floor((minute - toStart) / to.slotMinutes);
+    const coveredUntil = Math.min(minute + from.slotMinutes, toEnd);
+    const lastRow = Math.floor((coveredUntil - 1 - toStart) / to.slotMinutes);
 
-    kept.add(dateIndexInTo * toPerDay + row);
+    let landed = false;
+    for (let row = firstRow; row <= lastRow; row++) {
+      if (row < 0 || row >= toPerDay) continue;
+      kept.add(dateIndexInTo * toPerDay + row);
+      landed = true;
+    }
+    if (!landed) dropped += 1;
   }
 
   return { slots: [...kept].sort((a, b) => a - b), dropped };

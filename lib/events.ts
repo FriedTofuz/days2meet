@@ -49,6 +49,15 @@ interface ParticipantRecord {
   email?: string | null;
 }
 
+/**
+ * A ceiling on how many people one event may hold. Set far above any real
+ * gathering this app is for, so it never troubles a genuine poll, but low enough
+ * that a script cannot inflate a roster without bound — every extra row is
+ * loaded and re-serialised to every viewer on each poll, so an unbounded roster
+ * is a denial-of-service on the very people trying to use it.
+ */
+export const MAX_PARTICIPANTS_PER_EVENT = 500;
+
 export function geometryFromRow(row: EventRow): EventGeometry {
   return {
     mode: row.mode,
@@ -58,6 +67,17 @@ export function geometryFromRow(row: EventRow): EventGeometry {
     startMinute: row.start_minute,
     endMinute: row.end_minute,
   };
+}
+
+/** How many people have answered, for the per-event ceiling. */
+export async function countParticipants(eventId: string): Promise<number> {
+  const { count, error } = await supabaseAdmin()
+    .from(PARTICIPANTS_TABLE)
+    .select('id', { count: 'exact', head: true })
+    .eq('event_id', eventId);
+
+  if (error) throw new Error(error.message);
+  return count ?? 0;
 }
 
 export async function findEventBySlug(slug: string): Promise<EventRow | null> {
@@ -146,13 +166,18 @@ export function toEventPayload(
 export async function getEventPayload(
   slug: string,
   viewerId?: string | null,
+  viewerVerified = false,
 ): Promise<EventPayload | null> {
   const row = await findEventBySlug(slug);
   if (!row) return null;
 
   const viewerIsLeader = viewerId != null && viewerId === row.leader_participant_id;
   const participants = await listParticipants(row.id, viewerIsLeader);
-  const viewerEmail = viewerId ? await readParticipantEmail(row.id, viewerId) : null;
+  // The address is only handed back to someone who proved they own it. A
+  // name-only session is unverified, so a stranger who signed in with a public
+  // name gets no email — neither their target's nor anyone's — on any poll.
+  const canSeeEmail = viewerId != null && (viewerIsLeader || viewerVerified);
+  const viewerEmail = canSeeEmail ? await readParticipantEmail(row.id, viewerId) : null;
   return toEventPayload(row, participants, viewerEmail, viewerIsLeader);
 }
 
@@ -177,6 +202,11 @@ export async function hasValidAdminToken(
   token: string | undefined,
 ): Promise<boolean> {
   if (!token) return false;
+  // The real token is always 32 bytes of hex (see `newAdminToken`). Rejecting
+  // anything else here means a junk cookie is turned away for the cost of a
+  // regex, not a database round trip and a scrypt — so it cannot be used to make
+  // an unauthenticated request burn either.
+  if (!/^[0-9a-f]{64}$/.test(token)) return false;
 
   const hash = await readAdminTokenHash(eventId);
   if (!hash) return false;

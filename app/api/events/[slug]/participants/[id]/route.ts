@@ -29,6 +29,13 @@ export async function DELETE(
     const target = await findParticipantById(event.id, id);
     if (!target) return jsonError('That response has already been removed.', 404);
 
+    // The leader's row backs the leader controls; deleting it nulls the pointer
+    // to it and leaves the event with no owner the session can recover. Refuse
+    // it, whoever is asking, rather than strand the controls.
+    if (target.id === event.leader_participant_id) {
+      return jsonError('The group leader cannot be removed from their own days2meet.', 403);
+    }
+
     const store = await cookies();
     const sessionId = readCookieValue(store.get(cookieName(slug))?.value);
     const isSelf = sessionId !== null && sessionId === target.id;
@@ -44,6 +51,13 @@ export async function DELETE(
         return jsonError('You are signed out. Enter your name again to remove a response.', 401);
       }
       return jsonError('Only the group leader can remove someone else\'s response.', 403);
+    }
+
+    // Closing an event freezes the tally. The leader may still curate the roster,
+    // but a respondent pulling their own row out after the fact would shrink the
+    // very result everyone has been sent to read.
+    if (isSelf && event.responses_closed) {
+      return jsonError('This days2meet is closed, so responses can no longer be removed.', 403);
     }
 
     const { error } = await supabaseAdmin()

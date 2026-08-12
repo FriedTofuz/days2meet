@@ -4,13 +4,16 @@ import { NextResponse } from 'next/server';
 import type { EventRow } from '@/lib/events';
 import {
   claimLeader,
+  countParticipants,
   findEventBySlug,
   findParticipantByEmail,
   findParticipantByName,
   hasValidAdminToken,
+  MAX_PARTICIPANTS_PER_EVENT,
   readParticipantEmail,
 } from '@/lib/events';
 import { jsonError, readJsonBody, serverError } from '@/lib/http';
+import { checkSigninRate, recordSigninFailure } from '@/lib/rate-limit';
 import {
   looksLikeEmail,
   MAX_EMAIL_LENGTH,
@@ -78,6 +81,20 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
       return jsonError('Enter your email address.');
     }
 
+    // Metered before any identity lookup, so a caller who has already burned
+    // through failed guesses cannot reach a scrypt at all.
+    const rate = await checkSigninRate(request);
+    if (!rate.allowed) {
+      const minutes = Math.max(1, Math.round(rate.retryAfterSeconds / 60));
+      return jsonError(
+        `Too many sign-in attempts from here. Try again in about ${minutes} ${
+          minutes === 1 ? 'minute' : 'minutes'
+        }.`,
+        429,
+        { 'retry-after': String(rate.retryAfterSeconds) },
+      );
+    }
+
     const client = supabaseAdmin();
 
     // The address wins over the name. Someone who cannot remember whether they
@@ -99,6 +116,12 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
       // sign in below to look at the results.
       if (event.responses_closed) {
         return jsonError('This days2meet is closed to new responses.', 403);
+      }
+
+      // A new name means a new row, so this is where a flood would land. The
+      // ceiling keeps one event from being inflated until it is too big to load.
+      if ((await countParticipants(event.id)) >= MAX_PARTICIPANTS_PER_EVENT) {
+        return jsonError('This days2meet has as many responses as it can hold.', 409);
       }
 
       const { data, error } = await client
@@ -126,24 +149,39 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         if (!existing) throw new Error(error.message);
       } else {
         const created = data as { id: string; name: string; slots: number[] | null; updated_at: string };
-        return await respondSignedIn(event, {
-          id: created.id,
-          name: created.name,
-          slots: created.slots ?? [],
-          updatedAt: created.updated_at,
-          email: email || null,
-        });
+        return await respondSignedIn(
+          event,
+          {
+            id: created.id,
+            name: created.name,
+            slots: created.slots ?? [],
+            updatedAt: created.updated_at,
+            email: email || null,
+          },
+          // They just set this row up with an address and/or a password of their
+          // own, which is proof enough to be shown that address again.
+          Boolean(email) || Boolean(password),
+        );
       }
     }
 
     let passwordIgnored = false;
+    // Knowing the address this row was created with is proof enough on its own;
+    // the password check below is the other way to earn it.
+    let verified = matchedByEmail;
 
     if (existing.password_hash) {
       if (!password) {
         return jsonError('That name is password protected. Enter the password to edit it.', 401);
       }
       const matches = await verifyPassword(password, existing.password_hash);
-      if (!matches) return jsonError('That password does not match. Try again.', 401);
+      if (!matches) {
+        // Only wrong guesses are counted, so the room of people signing in
+        // correctly is never throttled — the script trying passwords is.
+        await recordSigninFailure(request);
+        return jsonError('That password does not match. Try again.', 401);
+      }
+      verified = true;
     } else if (password) {
       // The name was created without a password, so it is open to anyone. Setting
       // a password now would let a stranger lock out whoever answered first, so
@@ -151,30 +189,32 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
       passwordIgnored = true;
     }
 
-    // Only now, past the password check, may this request touch a stored address.
-    let storedEmail: string | null = email || null;
-    if (matchedByEmail) {
-      // This row was found *by* that address, so writing it back could only
-      // change the capitalisation they first chose. Read theirs instead.
-      storedEmail = await readParticipantEmail(event.id, existing.id);
-    } else if (email) {
-      // Safe to claim: the lookup above found nobody holding this address on
-      // this event, and the unique index catches anyone who took it since.
-      const { error } = await client
-        .from(PARTICIPANTS_TABLE)
-        .update({ email })
-        .eq('id', existing.id)
-        .eq('event_id', event.id);
+    // The stored address is personal, so it is only read back or changed for a
+    // proven identity. A name typed off the public roster is not proof, so a
+    // name-only sign-in gets no address and cannot bind one — it may still edit
+    // availability, which is what a password-less name was always open to.
+    let storedEmail: string | null = null;
+    if (verified) {
+      if (email && !matchedByEmail) {
+        // A verified holder may set or refresh their own address. The lookup
+        // above found nobody else holding it, and the unique index catches
+        // anyone who took it since.
+        const { error } = await client
+          .from(PARTICIPANTS_TABLE)
+          .update({ email })
+          .eq('id', existing.id)
+          .eq('event_id', event.id);
 
-      if (error) {
-        if (error.code === '23505') {
-          return jsonError('That email has already answered. Sign in with it instead.');
+        if (error) {
+          if (error.code === '23505') {
+            return jsonError('That email has already answered. Sign in with it instead.');
+          }
+          throw new Error(error.message);
         }
-        throw new Error(error.message);
+        storedEmail = email;
+      } else {
+        storedEmail = await readParticipantEmail(event.id, existing.id);
       }
-    } else if (event.collect_email) {
-      // Signing in again without retyping the address must not wipe it.
-      storedEmail = await readParticipantEmail(event.id, existing.id);
     }
 
     return await respondSignedIn(
@@ -186,6 +226,7 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         updatedAt: existing.updated_at,
         email: storedEmail,
       },
+      verified,
       passwordIgnored,
     );
   } catch (error) {
@@ -211,12 +252,13 @@ async function respondSignedIn(
     updatedAt: string;
     email: string | null;
   },
+  verified: boolean,
   passwordIgnored = false,
 ) {
   await claimLeadership(event, participant.id);
 
   const store = await cookies();
-  store.set(cookieName(event.slug), issueCookieValue(participant.id), cookieOptions());
+  store.set(cookieName(event.slug), issueCookieValue(participant.id, verified), cookieOptions());
   return NextResponse.json({ participant, passwordIgnored });
 }
 

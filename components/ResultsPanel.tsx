@@ -19,6 +19,12 @@ interface Props {
   participants: ParticipantLite[];
   counts: number[];
   onHighlight: (keys: string[] | null) => void;
+  /**
+   * Added to every time shown here, matching the grid's gutter, so "Label in my
+   * time" moves the best-times list along with everything else rather than
+   * leaving it in event time while the header claims the viewer's.
+   */
+  labelShiftMinutes?: number;
 }
 
 function NameList({ names, empty }: { names: string[]; empty: string }) {
@@ -26,7 +32,13 @@ function NameList({ names, empty }: { names: string[]; empty: string }) {
   return <>{names.join(', ')}</>;
 }
 
-export default function ResultsPanel({ geometry, participants, counts, onHighlight }: Props) {
+export default function ResultsPanel({
+  geometry,
+  participants,
+  counts,
+  onHighlight,
+  labelShiftMinutes = 0,
+}: Props) {
   const total = participants.length;
   const slotSets = useMemo(() => buildSlotSets(participants), [participants]);
   const [threshold, setThreshold] = useState(Math.max(1, total));
@@ -76,8 +88,8 @@ export default function ResultsPanel({ geometry, participants, counts, onHighlig
         ) : (
           <ol className="space-y-1">
             {windows.map((window) => {
-              const start = rowStartMinute(geometry, window.startRow);
-              const end = rowStartMinute(geometry, window.endRow) + geometry.slotMinutes;
+              const start = rowStartMinute(geometry, window.startRow) + labelShiftMinutes;
+              const end = rowStartMinute(geometry, window.endRow) + geometry.slotMinutes + labelShiftMinutes;
               const header = formatColumnHeader(window.date);
               const names = alwaysFreeNames(participants, window.slots);
               return (

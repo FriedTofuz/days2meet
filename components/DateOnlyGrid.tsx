@@ -237,7 +237,11 @@ export default function DateOnlyGrid({
                         {dayNumber}
                       </span>
                       {totalParticipants > 0 ? (
-                        <span className="num text-right text-[0.625rem] leading-none opacity-80">
+                        // Full opacity: the ramp step already sets this apart from
+                        // the day number above it, and at 10px the extra fade left
+                        // the count just under the AA contrast floor on the darker
+                        // cells.
+                        <span className="num text-right text-[0.625rem] leading-none">
                           {count}/{totalParticipants}
                         </span>
                       ) : null}

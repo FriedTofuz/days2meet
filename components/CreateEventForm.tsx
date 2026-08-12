@@ -14,6 +14,7 @@ import {
 } from '@/lib/identity';
 import CreationCalendar from './CreationCalendar';
 import ShareDialog from './ShareDialog';
+import StarBanner from './StarBanner';
 
 const GRANULARITIES = [15, 30, 60] as const;
 
@@ -371,7 +372,7 @@ export default function CreateEventForm() {
                     <label
                       key={value}
                       className={[
-                        'num cursor-pointer rounded-md px-3 py-1 text-[0.8125rem]',
+                        'num flex min-h-10 cursor-pointer items-center rounded-md px-3 text-[0.8125rem]',
                         slotMinutes === value ? 'bg-ink text-paper' : 'text-ink hover:bg-ramp-1',
                       ].join(' ')}
                     >
@@ -436,6 +437,12 @@ export default function CreateEventForm() {
             {error}
           </p>
         ) : null}
+
+        {/* Phone only — see the note in app/page.tsx. Up here it would be the
+            first thing between someone and the form; down here it is the last
+            thing they read before committing, built as the button's twin so the
+            two read as one stack rather than a banner that happens to be near. */}
+        <StarBanner className="w-full sm:hidden" buttonSized />
 
         <button type="submit" className="btn btn-primary w-full sm:w-auto" disabled={submitting}>
           {created ? 'Event created' : submitting ? 'Creating…' : 'Create event'}

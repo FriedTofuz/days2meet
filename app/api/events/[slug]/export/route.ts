@@ -116,9 +116,15 @@ function clockTime(minute: number): string {
  * Excel and Sheets run a cell beginning =, +, - or @ as a formula, and these
  * cells are free text typed by strangers. A leading apostrophe forces the cell
  * to stay text; the quoting around it is ordinary RFC 4180.
+ *
+ * The tab, carriage return and line feed are in the guard too: a spreadsheet
+ * strips a leading one of those and then runs the `=` that followed, which is
+ * the known way past a `=+-@`-only guard. Today's columns are all trimmed or
+ * numeric so none can begin that way, but the export gains new columns over
+ * time and this keeps it safe whatever they hold.
  */
 function csvCell(value: string): string {
-  const guarded = /^[=+\-@]/.test(value) ? `'${value}` : value;
+  const guarded = /^[=+\-@\t\r\n]/.test(value) ? `'${value}` : value;
   return /["\n\r,]/.test(guarded) ? `"${guarded.replace(/"/g, '""')}"` : guarded;
 }
 

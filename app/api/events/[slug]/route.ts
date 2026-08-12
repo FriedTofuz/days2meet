@@ -11,7 +11,7 @@ import {
   updateEvent,
 } from '@/lib/events';
 import { jsonError, readJsonBody, serverError } from '@/lib/http';
-import { adminCookieName, cookieName, readCookieValue } from '@/lib/session';
+import { adminCookieName, cookieName, readCookieValue, readSession } from '@/lib/session';
 import { ALLOWED_GRANULARITY, MAX_DATES, type EventGeometry } from '@/lib/slots';
 
 export const runtime = 'nodejs';
@@ -22,11 +22,12 @@ export async function GET(_request: Request, context: { params: Promise<{ slug: 
     const { slug } = await context.params;
 
     // The poll carries the viewer's own address back to them, so it has to know
-    // who is asking.
+    // who is asking — and whether they proved it, since only a verified session
+    // is shown the address.
     const store = await cookies();
-    const viewerId = readCookieValue(store.get(cookieName(slug))?.value);
+    const session = readSession(store.get(cookieName(slug))?.value);
 
-    const payload = await getEventPayload(slug, viewerId);
+    const payload = await getEventPayload(slug, session?.id ?? null, session?.verified ?? false);
     if (!payload) return jsonError('That event link does not exist. Check the URL and try again.', 404);
 
     return NextResponse.json(payload, {

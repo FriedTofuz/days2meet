@@ -210,8 +210,10 @@ export async function POST(request: Request) {
       // The raw token leaves the server only here, in an httpOnly cookie.
       store.set(adminCookieName(created.slug), adminToken, cookieOptions());
       // The same session signin issues, so the creator lands on their event
-      // already signed in instead of being asked for what they just typed.
-      store.set(cookieName(created.slug), issueCookieValue(leaderId), cookieOptions());
+      // already signed in instead of being asked for what they just typed. They
+      // chose the password a moment ago, so the session is verified and shows
+      // them their own address back.
+      store.set(cookieName(created.slug), issueCookieValue(leaderId, true), cookieOptions());
     } catch (failure) {
       await deleteEvent(created.id).catch((cleanup) => {
         console.error('[days2meet] could not unwind a half-made event', cleanup);

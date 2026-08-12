@@ -88,22 +88,62 @@ export function newAdminToken(): string {
   return randomBytes(32).toString('hex');
 }
 
-export function issueCookieValue(participantId: string): string {
-  return `${participantId}.${sign(participantId)}`;
+export interface Session {
+  id: string;
+  /**
+   * Whether the holder proved who they are with a private factor — the row's
+   * password, or the address it was created with — as opposed to typing a name
+   * that is public in the roster. Only a verified session is shown the stored
+   * email; a name-only one may still edit availability, When2meet-style.
+   */
+  verified: boolean;
+}
+
+/**
+ * `verified` rides inside the signed value, so the flag cannot be flipped
+ * without the secret. Participant ids are UUIDs and carry no dots, so the value
+ * splits cleanly on `.` into id, flag, and signature.
+ */
+export function issueCookieValue(participantId: string, verified: boolean): string {
+  const token = `${participantId}.${verified ? 'v' : 'n'}`;
+  return `${token}.${sign(token)}`;
+}
+
+/** The session if the signature checks out, otherwise null. */
+export function readSession(raw: string | undefined | null): Session | null {
+  if (!raw) return null;
+  const parts = raw.split('.');
+
+  // Current shape: `<id>.<flag>.<hmac>`, the HMAC taken over `<id>.<flag>`.
+  if (parts.length === 3) {
+    const [id, flag, mac] = parts;
+    if (!id || (flag !== 'v' && flag !== 'n')) return null;
+    if (!macMatches(`${id}.${flag}`, mac)) return null;
+    return { id, verified: flag === 'v' };
+  }
+
+  // Legacy shape: `<id>.<hmac>` over the id alone, from before the flag existed.
+  // Still trusted for identity, but never treated as verified — the holder can
+  // re-sign-in to prove the address again.
+  if (parts.length === 2) {
+    const [id, mac] = parts;
+    if (!id || !macMatches(id, mac)) return null;
+    return { id, verified: false };
+  }
+
+  return null;
 }
 
 /** The participant id if the signature checks out, otherwise null. */
 export function readCookieValue(raw: string | undefined | null): string | null {
-  if (!raw) return null;
-  const separator = raw.lastIndexOf('.');
-  if (separator <= 0) return null;
+  return readSession(raw)?.id ?? null;
+}
 
-  const participantId = raw.slice(0, separator);
-  const presented = Buffer.from(raw.slice(separator + 1), 'utf8');
-  const expected = Buffer.from(sign(participantId), 'utf8');
-  if (presented.length !== expected.length) return null;
-
-  return timingSafeEqual(presented, expected) ? participantId : null;
+function macMatches(payload: string, mac: string): boolean {
+  const presented = Buffer.from(mac, 'utf8');
+  const expected = Buffer.from(sign(payload), 'utf8');
+  if (presented.length !== expected.length) return false;
+  return timingSafeEqual(presented, expected);
 }
 
 export const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
