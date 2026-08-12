@@ -1,0 +1,279 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-paper: #fcfcfd;
+  --color-ink: #14161a;
+  --color-line: #e3e5ea;
+  --color-muted: #6b7280;
+  --color-surface: #ffffff;
+
+  /* Availability ramp — one teal family, stepped so counts stay legible. */
+  --color-ramp-1: #eaf4f2;
+  --color-ramp-2: #b9ded6;
+  --color-ramp-3: #7bc2b4;
+  --color-ramp-4: #3d9e8c;
+  --color-ramp-5: #0e6e62;
+
+  /* Everyone is free. Breaks out of the teal ramp so a full house is unmistakable. */
+  --color-full: #fdb515;
+
+  /* Signal colour for your own marks. Never used for chrome. */
+  --color-you: #e0a800;
+  --color-accent: #0e6e62;
+  --color-danger: #9f1239;
+
+  --font-display: var(--font-display-face), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-ui-face), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-face), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* The literal token names from the design direction, for anything reading them raw. */
+:root {
+  --paper: var(--color-paper);
+  --ink: var(--color-ink);
+  --line: var(--color-line);
+  --muted: var(--color-muted);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv01', 'cv03';
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Visible focus everywhere, including inside the grids. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background: var(--color-ramp-2);
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+  }
+
+  input,
+  select,
+  button,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+}
+
+@layer components {
+  .panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 10px;
+  }
+
+  .field {
+    width: 100%;
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 8px;
+    padding: 0.5rem 0.625rem;
+    font-size: 0.9375rem;
+    line-height: 1.4;
+  }
+
+  .field::placeholder {
+    color: var(--color-muted);
+  }
+
+  .field:hover:not(:disabled) {
+    border-color: #c9ccd4;
+  }
+
+  .label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    margin-bottom: 0.375rem;
+  }
+
+  .hint {
+    color: var(--color-muted);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    border-radius: 8px;
+    border: 1px solid var(--color-line);
+    background: var(--color-surface);
+    padding: 0.4375rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 120ms ease, border-color 120ms ease;
+  }
+
+  .btn:hover:not(:disabled) {
+    background: #f4f5f7;
+  }
+
+  .btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .btn-primary {
+    background: var(--color-ink);
+    border-color: var(--color-ink);
+    color: var(--color-paper);
+    padding: 0.5625rem 1rem;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: #24272d;
+  }
+
+  /* The buttons that lead somewhere you edit — your availability, the event
+     itself, back out of the editor. Green so they read as "go do the thing" next
+     to the neutral chrome buttons, light so they never compete with the grid.
+     Colour alone carries that, with no weight of its own: sitting in a row of
+     plain `.btn`s, a heavier one would read as a different kind of control. */
+  .btn-edit {
+    background: #d9f2e4;
+    border-color: #8fd4ae;
+    color: #0f4c33;
+  }
+
+  .btn-edit:hover:not(:disabled) {
+    background: #c7ead6;
+  }
+
+  .btn-danger {
+    background: var(--color-danger);
+    border-color: var(--color-danger);
+    color: var(--color-paper);
+  }
+
+  .btn-danger:hover:not(:disabled) {
+    background: #86102f;
+  }
+
+  .btn-link {
+    border: 0;
+    background: none;
+    padding: 0;
+    color: var(--color-muted);
+    font-size: 0.8125rem;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+
+  .btn-link:hover {
+    color: var(--color-ink);
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border: 1px solid var(--color-line);
+    border-radius: 999px;
+    padding: 0.125rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+
+  .section-title {
+    font-family: var(--font-display);
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+}
+
+/* iOS Safari magnifies the viewport the moment you focus a control whose text is
+   under 16px, and never scales back — the page stays blown up, through reloads and
+   into every later visit. Sizing the controls out of that trigger is the only cure
+   that does not also take pinch-zoom away from people who want it. From `sm:` up
+   there is no touch keyboard to provoke it, so the compact sizing stands.
+
+   Unlayered on purpose: Tailwind's utilities layer outranks anything `@layer` here
+   can say, so a `text-[0.8125rem]` at the call site would win. An unlayered rule
+   outranks every layer regardless of specificity, which settles it without
+   `!important` and without chasing utility classes through the components. */
+@media (width < 40rem) {
+  input,
+  select,
+  textarea {
+    font-size: 1rem;
+  }
+}
+
+@layer utilities {
+  /* Painting must not select text or trigger the browser's touch scrolling. */
+  .no-touch-pan {
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  .scroll-x {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+}
+
+/* The one piece of motion in the app: the result bracket drawing itself in. */
+@keyframes w2m-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.bracket-path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: w2m-draw 150ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .bracket-path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}

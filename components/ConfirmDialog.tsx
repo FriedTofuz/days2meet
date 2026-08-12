@@ -1,0 +1,105 @@
+'use client';
+
+import { useEffect, useRef } from 'react';
+
+import { useScrollLock } from './useScrollLock';
+
+interface Props {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  cancelLabel?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+/**
+ * The modal for a decision that cannot be undone.
+ *
+ * Cancel takes the initial focus, so the reflex of hitting Enter on a dialog
+ * backs out instead of destroying other people's marks.
+ */
+export default function ConfirmDialog({
+  title,
+  body,
+  confirmLabel,
+  cancelLabel = 'Cancel',
+  onConfirm,
+  onCancel,
+}: Props) {
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useScrollLock(true);
+
+  useEffect(() => {
+    cancelRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCancel();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      // Without this, Tab walks out of the dialog and onto the form behind it,
+      // which is still fully operable while the question is unanswered.
+      const stops = panelRef.current?.querySelectorAll<HTMLElement>('button');
+      if (!stops || stops.length === 0) return;
+      const first = stops[0];
+      const last = stops[stops.length - 1];
+      if (event.shiftKey ? document.activeElement === first : document.activeElement === last) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      }
+    };
+
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/30 p-4 sm:items-center"
+      onPointerDown={(event) => {
+        if (event.target === event.currentTarget) onCancel();
+      }}
+    >
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-title"
+        aria-describedby="confirm-body"
+        className="panel w-full max-w-sm p-4 shadow-lg"
+      >
+        <h2 id="confirm-title" className="section-title">
+          {title}
+        </h2>
+        <p id="confirm-body" className="hint mt-1.5">
+          {body}
+        </p>
+        <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button
+            ref={cancelRef}
+            type="button"
+            className="btn min-h-11 sm:min-w-24"
+            onClick={onCancel}
+          >
+            {cancelLabel}
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary min-h-11 sm:min-w-24"
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

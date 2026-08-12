@@ -1,0 +1,34 @@
+# days2meet
+
+A group availability poll — the same idea as When2meet — with one addition that matters: a
+**mode** you choose when the event is created.
+
+- **Dates & times** — the classic vertical time grid. A date range, a daily time window,
+  painted by dragging rectangles. Anchored to one timezone, which each respondent can
+  relabel in their own.
+- **Dates only** — a month calendar where respondents mark whole days. No times, no
+  timezone, no grid rows. This is the mode for far-off planning where hours are meaningless:
+  winter break, a trip window, "which weekend in October".
+
+Live at **https://days2meet.vercel.app**.
+
+## How it works
+
+Create an event and send the one link to everyone. Respondents type a name and start
+marking — no account, no confirmation email. A password is optional for them, and only stops
+other people editing their answer. The answers stack into a heat map, so the slot that suits
+the most people is the darkest one on the screen.
+
+Whoever creates the event is the **group leader**, and they do give a name, an address and a
+password up front. The password is not optional, because the leader's name is public in the
+roster: without one, anyone who read it could sign in as them and collect every respondent's
+address. There is no reset, so it is worth saving.
+
+The leader gets an edit page where they can move the dates, change the time window, close
+responses, export the roster as CSV, and remove a response. Email addresses are shown to the
+leader and to nobody else.
+
+## Stack
+
+Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS v4, and Supabase for Postgres.
+No client-side state library and no UI kit. Deployed on Vercel.
